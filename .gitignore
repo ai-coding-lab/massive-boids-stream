@@ -1,0 +1,20 @@
+# Rust
+backend/target/
+
+# Output
+output/
+*.mp4
+*.png
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

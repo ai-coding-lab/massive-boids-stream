@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Massive Boids Stream - Summary</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #0a1a2a 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 8s ease infinite;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        @keyframes fadeSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+
+        h1 {
+            font-size: clamp(1.8rem, 6vw, 2.8rem);
+            text-align: center;
+            background: linear-gradient(90deg, #1e90ff, #ff8c00);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(30, 144, 255, 0.5);
+        }
+
+        .diagram {
+            opacity: 0;
+            animation: fadeSlideIn 0.4s ease forwards;
+            animation-delay: 1.0s;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .diagram svg {
+            width: 100%;
+            height: auto;
+        }
+
+        .description {
+            opacity: 0;
+            animation: fadeSlideIn 0.4s ease forwards;
+            animation-delay: 1.0s;
+            font-size: clamp(1rem, 3vw, 1.3rem);
+            text-align: center;
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1.6;
+        }
+
+        .prompt-section {
+            opacity: 0;
+            animation: fadeSlideIn 0.4s ease forwards;
+            animation-delay: 2.0s;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .prompt-section h2 {
+            font-size: 1.2rem;
+            color: #ff8c00;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .prompt-section ul {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .prompt-section li {
+            opacity: 0;
+            animation: fadeSlideIn 0.4s ease forwards;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+            line-height: 1.5;
+        }
+
+        .prompt-section li:nth-child(1) { animation-delay: 3.0s; }
+        .prompt-section li:nth-child(2) { animation-delay: 4.0s; }
+        .prompt-section li:nth-child(3) { animation-delay: 5.0s; }
+
+        .prompt-section li::before {
+            content: '';
+            flex-shrink: 0;
+            width: 8px;
+            height: 8px;
+            margin-top: 8px;
+            background: linear-gradient(135deg, #1e90ff, #ff8c00);
+            border-radius: 50%;
+        }
+
+        .rule-label {
+            font-size: 14px;
+            fill: white;
+            text-anchor: middle;
+        }
+
+        .rule-sublabel {
+            font-size: 11px;
+            fill: rgba(255, 255, 255, 0.7);
+            text-anchor: middle;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Massive Boids Stream</h1>
+
+        <div class="diagram">
+            <svg viewBox="0 0 500 160" xmlns="http://www.w3.org/2000/svg">
+                <!-- Separation -->
+                <g transform="translate(83, 80)">
+                    <circle cx="0" cy="0" r="35" fill="none" stroke="rgba(30, 144, 255, 0.3)" stroke-width="1" stroke-dasharray="4"/>
+                    <circle cx="0" cy="0" r="6" fill="#1e90ff"/>
+                    <circle cx="-15" cy="-10" r="4" fill="#ff8c00"/>
+                    <circle cx="12" cy="-12" r="4" fill="#ff8c00"/>
+                    <circle cx="10" cy="15" r="4" fill="#ff8c00"/>
+                    <!-- Arrows pointing outward -->
+                    <line x1="-15" y1="-10" x2="-25" y2="-18" stroke="#ff8c00" stroke-width="2" marker-end="url(#arrowOrange)"/>
+                    <line x1="12" y1="-12" x2="22" y2="-20" stroke="#ff8c00" stroke-width="2" marker-end="url(#arrowOrange)"/>
+                    <line x1="10" y1="15" x2="18" y2="25" stroke="#ff8c00" stroke-width="2" marker-end="url(#arrowOrange)"/>
+                    <text x="0" y="55" class="rule-label">Separation</text>
+                    <text x="0" y="70" class="rule-sublabel">avoid crowding</text>
+                </g>
+
+                <!-- Alignment -->
+                <g transform="translate(250, 80)">
+                    <circle cx="0" cy="0" r="35" fill="none" stroke="rgba(30, 144, 255, 0.3)" stroke-width="1" stroke-dasharray="4"/>
+                    <circle cx="0" cy="0" r="6" fill="#1e90ff"/>
+                    <circle cx="-18" cy="-8" r="4" fill="#ff8c00"/>
+                    <circle cx="15" cy="-10" r="4" fill="#ff8c00"/>
+                    <circle cx="8" cy="18" r="4" fill="#ff8c00"/>
+                    <!-- Arrows pointing same direction -->
+                    <line x1="0" y1="0" x2="15" y2="-10" stroke="#1e90ff" stroke-width="2" marker-end="url(#arrowBlue)"/>
+                    <line x1="-18" y1="-8" x2="-3" y2="-18" stroke="#ff8c00" stroke-width="2" marker-end="url(#arrowOrange)"/>
+                    <line x1="15" y1="-10" x2="30" y2="-20" stroke="#ff8c00" stroke-width="2" marker-end="url(#arrowOrange)"/>
+                    <line x1="8" y1="18" x2="23" y2="8" stroke="#ff8c00" stroke-width="2" marker-end="url(#arrowOrange)"/>
+                    <text x="0" y="55" class="rule-label">Alignment</text>
+                    <text x="0" y="70" class="rule-sublabel">match direction</text>
+                </g>
+
+                <!-- Cohesion -->
+                <g transform="translate(417, 80)">
+                    <circle cx="0" cy="0" r="35" fill="none" stroke="rgba(30, 144, 255, 0.3)" stroke-width="1" stroke-dasharray="4"/>
+                    <circle cx="0" cy="0" r="6" fill="#1e90ff"/>
+                    <circle cx="-30" cy="-5" r="4" fill="#ff8c00"/>
+                    <circle cx="25" cy="-20" r="4" fill="#ff8c00"/>
+                    <circle cx="20" cy="25" r="4" fill="#ff8c00"/>
+                    <!-- Arrows pointing inward -->
+                    <line x1="-30" y1="-5" x2="-15" y2="-3" stroke="#ff8c00" stroke-width="2" marker-end="url(#arrowOrange)"/>
+                    <line x1="25" y1="-20" x2="12" y2="-10" stroke="#ff8c00" stroke-width="2" marker-end="url(#arrowOrange)"/>
+                    <line x1="20" y1="25" x2="10" y2="12" stroke="#ff8c00" stroke-width="2" marker-end="url(#arrowOrange)"/>
+                    <text x="0" y="55" class="rule-label">Cohesion</text>
+                    <text x="0" y="70" class="rule-sublabel">stay close</text>
+                </g>
+
+                <!-- Arrow markers -->
+                <defs>
+                    <marker id="arrowOrange" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                        <path d="M0,0 L0,6 L6,3 z" fill="#ff8c00"/>
+                    </marker>
+                    <marker id="arrowBlue" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                        <path d="M0,0 L0,6 L6,3 z" fill="#1e90ff"/>
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+
+        <p class="description">
+            10万匹の群れ行動シミュレーションを動画で再生
+        </p>
+
+        <div class="prompt-section">
+            <h2>プロンプト(要約)</h2>
+            <ul>
+                <li>10万点のBoidsシミュレーション（分離・整列・結合）</li>
+                <li>Rust + Rayonで並列計算し、FFmpegで動画化</li>
+                <li>残像フェード、速度に応じた青→オレンジのカラーマッピング</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

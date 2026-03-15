@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Massive Boids Stream</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #0a1a2a 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 8s ease infinite;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .container {
+            width: 100%;
+            max-width: 720px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        h1 {
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+            text-align: center;
+            background: linear-gradient(90deg, #1e90ff, #ff8c00);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(30, 144, 255, 0.5);
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #ff8c00;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 5px;
+        }
+
+        .video-container {
+            width: 100%;
+            aspect-ratio: 9/16;
+            max-height: 80vh;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        video.show {
+            display: block;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .loading-state.hidden {
+            display: none;
+        }
+
+        .progress-ring-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            margin: 0 auto 20px;
+        }
+
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+
+        .progress-ring-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 8;
+        }
+
+        .progress-ring-fill {
+            fill: none;
+            stroke: url(#progressGradient);
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-dasharray: 408.41;
+            stroke-dashoffset: 408.41;
+            transition: stroke-dashoffset 0.3s ease;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .status-text {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 10px;
+        }
+
+        .frame-info {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .generating .status-text {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: linear-gradient(135deg, #1e90ff, #ff8c00);
+            border-radius: 50%;
+            animation: float linear infinite;
+            opacity: 0.6;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+            }
+            100% {
+                transform: translateY(-10vh) rotate(720deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles" id="particles"></div>
+
+    <div class="container">
+        <h1>Massive Boids Stream</h1>
+
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value">100,000</div>
+                <div class="stat-label">Boids</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">30fps</div>
+                <div class="stat-label">Frame Rate</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">30s</div>
+                <div class="stat-label">Duration</div>
+            </div>
+        </div>
+
+        <div class="video-container">
+            <div class="loading-state" id="loadingState">
+                <div class="progress-ring-container">
+                    <svg class="progress-ring" width="150" height="150">
+                        <defs>
+                            <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#1e90ff" />
+                                <stop offset="100%" stop-color="#ff8c00" />
+                            </linearGradient>
+                        </defs>
+                        <circle class="progress-ring-bg" cx="75" cy="75" r="65"></circle>
+                        <circle class="progress-ring-fill" id="progressRing" cx="75" cy="75" r="65"></circle>
+                    </svg>
+                    <div class="progress-text" id="progressText">0%</div>
+                </div>
+                <div class="status-text" id="statusText">Initializing...</div>
+                <div class="frame-info" id="frameInfo">Frame 0 / 900</div>
+            </div>
+
+            <video id="video" controls loop playsinline>
+                <source src="/video/boids.mp4" type="video/mp4">
+            </video>
+        </div>
+    </div>
+
+    <script>
+        const progressRing = document.getElementById('progressRing');
+        const progressText = document.getElementById('progressText');
+        const statusText = document.getElementById('statusText');
+        const frameInfo = document.getElementById('frameInfo');
+        const loadingState = document.getElementById('loadingState');
+        const video = document.getElementById('video');
+        const circumference = 2 * Math.PI * 65;
+
+        // Create background particles
+        function createParticles() {
+            const container = document.getElementById('particles');
+            for (let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDuration = (5 + Math.random() * 10) + 's';
+                particle.style.animationDelay = Math.random() * 5 + 's';
+                container.appendChild(particle);
+            }
+        }
+
+        function updateProgress(progress, frame, totalFrames) {
+            const offset = circumference - (progress / 100) * circumference;
+            progressRing.style.strokeDashoffset = offset;
+            progressText.textContent = progress + '%';
+            frameInfo.textContent = `Frame ${frame} / ${totalFrames}`;
+        }
+
+        function showVideo() {
+            loadingState.classList.add('hidden');
+            video.classList.add('show');
+            video.load();
+            video.play().catch(e => console.log('Autoplay prevented:', e));
+        }
+
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                return data;
+            } catch (e) {
+                console.error('Status check failed:', e);
+                return null;
+            }
+        }
+
+        async function startGeneration() {
+            try {
+                const response = await fetch('/api/generate', { method: 'POST' });
+                const data = await response.json();
+                return data;
+            } catch (e) {
+                console.error('Failed to start generation:', e);
+                return null;
+            }
+        }
+
+        function connectSSE() {
+            loadingState.classList.add('generating');
+            statusText.textContent = 'Rendering simulation...';
+
+            const eventSource = new EventSource('/api/progress');
+
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                updateProgress(data.progress, data.frame, data.total_frames);
+
+                if (data.status === 'complete') {
+                    eventSource.close();
+                    statusText.textContent = 'Complete!';
+                    setTimeout(showVideo, 500);
+                }
+            };
+
+            eventSource.onerror = function() {
+                eventSource.close();
+                // Check if video is ready
+                setTimeout(async () => {
+                    const status = await checkStatus();
+                    if (status && status.video_ready) {
+                        showVideo();
+                    }
+                }, 1000);
+            };
+        }
+
+        async function init() {
+            createParticles();
+
+            const status = await checkStatus();
+
+            if (status && status.video_ready) {
+                // Video already exists
+                updateProgress(100, 900, 900);
+                showVideo();
+            } else if (status && status.generating) {
+                // Generation in progress, connect to SSE
+                connectSSE();
+            } else {
+                // Start generation
+                statusText.textContent = 'Starting simulation...';
+                const result = await startGeneration();
+
+                if (result && result.status === 'already_complete') {
+                    showVideo();
+                } else if (result && result.status === 'started') {
+                    connectSSE();
+                }
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
